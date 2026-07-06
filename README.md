@@ -1,8 +1,9 @@
 
-# Multi-Elevator Simulation, Reinforcement Learning Control, and Production API
+# intelevator
 
-This project investigates and compares classic and AI-based strategies for optimizing elevator operations in a multi-agent environment.  
-It spans simulation, RL training, and a production-ready API backend — from research baseline through to live deployment.
+A human-AI collaborative elevator control system spanning RL simulation, a production API backend, and a mobile frontend for riders, operators, superintendents, and human elevator operators.
+
+Built on open-source simulation and RL training foundations, extended into a full-stack deployable system with multi-agent reinforcement learning at its core.
 
 ---
 
@@ -18,6 +19,8 @@ It spans simulation, RL training, and a production-ready API backend — from re
   Training environment for RL agents (Stable Baselines3, Maskable PPO, SubprocVecEnv, etc.)
 - **Elevator_API:**  
   Production FastAPI/GraphQL backend for live elevator control. Implements the SCAN algorithm as a real-time service with WebSocket subscriptions, priority queuing, and role-based access. Extended with AI-assisted routing. Built on earlier works in this repository.
+- **Elevator_Mobile:**  
+  React Native / Expo mobile frontend for iOS and Android. Supports riders, operators, superintendents, and human elevator operators. Connects to the API via Apollo GraphQL with WebSocket subscriptions. EAS build configured for TestFlight and App Store deployment.
 - **Documentation_in_german:**  
   German documentation of the training and evaluation process, with discussion of results and implementation notes.
 
@@ -100,6 +103,13 @@ It spans simulation, RL training, and a production-ready API backend — from re
   elevator-system
   ```
 
+- **Mobile App:**
+  ```bash
+  cd Elevator_Mobile
+  yarn install
+  yarn start
+  ```
+
 For more details, see `Documentation_in_german/` and code comments.
 
 ---
@@ -134,5 +144,5 @@ Feel free to contact us if you have questions, need additional documentation, or
 
 ---
 
-**This project demonstrates practical multi-agent reinforcement learning in a real-world inspired logistics setting and provides a transparent benchmark against classic heuristics.**
+**intelevator demonstrates a full research-to-production pipeline: from RL simulation and training baselines through to a live API and mobile application, designed for human-AI collaborative building operations.**
 

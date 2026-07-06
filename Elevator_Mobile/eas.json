@@ -1,0 +1,47 @@
+{
+  "cli": {
+    "version": ">= 16.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "ios": {
+        "simulator": true
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "ios": {
+        "simulator": false,
+        "bundleIdentifier": "com.adaptllc.elevatorsystem"
+      }
+    },
+    "production": {
+      "distribution": "store",
+      "ios": {
+        "bundleIdentifier": "com.adaptllc.elevatorsystem"
+      }
+    },
+    "local": {
+      "distribution": "internal",
+      "ios": {
+        "buildConfiguration": "Release",
+        "bundleIdentifier": "com.adaptllc.elevatorsystem"
+      },
+      "env": {
+        "EAS_LOCAL_BUILD_SKIP_CLEANUP": "1"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "appleId": "ajdrake@gmail.com",
+        "ascAppId": "placeholder-will-be-generated",
+        "appleTeamId": "placeholder-will-be-set-during-build"
+      }
+    }
+  }
+}
