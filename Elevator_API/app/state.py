@@ -1,0 +1,196 @@
+"""Shared state management for the elevator system.
+
+Replaces Rust's Arc<RwLock<T>> with Python asyncio.Lock.
+"""
+import asyncio
+from typing import Dict, Set, Optional
+from uuid import UUID
+from datetime import datetime
+from sortedcontainers import SortedSet
+
+from .models import (
+    ClientInfo,
+    FloorRequest,
+    ElevatorState,
+    Direction,
+    FloorRequestUpdate,
+)
+from .algorithm import calculate_next_floor
+
+
+class ElevatorSystemState:
+    """Centralized state manager for the elevator system.
+
+    Manages:
+    - Client sessions
+    - Floor requests (priority-sorted)
+    - Elevator state (position, direction, operator)
+    - Subscription broadcasting
+    """
+
+    def __init__(self):
+        """Initialize the state manager."""
+        # Client sessions
+        self.clients: Dict[UUID, ClientInfo] = {}
+        self.clients_lock = asyncio.Lock()
+
+        # Floor requests (sorted by priority)
+        self.floor_requests: Set[FloorRequest] = set()
+        self.requests_lock = asyncio.Lock()
+
+        # Elevator state
+        self.elevator_state = ElevatorState()
+        self.elevator_lock = asyncio.Lock()
+
+        # Subscription queue for GraphQL real-time updates
+        self.subscribers: list[asyncio.Queue] = []
+        self.subscribers_lock = asyncio.Lock()
+
+    async def add_client(self, client: ClientInfo) -> None:
+        """Register a new client."""
+        async with self.clients_lock:
+            self.clients[client.id] = client
+
+    async def remove_client(self, client_id: UUID) -> None:
+        """Remove a client session."""
+        async with self.clients_lock:
+            self.clients.pop(client_id, None)
+
+    async def get_client(self, client_id: UUID) -> Optional[ClientInfo]:
+        """Get client information."""
+        async with self.clients_lock:
+            return self.clients.get(client_id)
+
+    async def update_client_poll_time(self, client_id: UUID) -> None:
+        """Update client's last poll timestamp."""
+        async with self.clients_lock:
+            if client_id in self.clients:
+                self.clients[client_id].last_poll = datetime.utcnow()
+
+    async def add_floor_request(self, request: FloorRequest) -> None:
+        """Add a floor request to the queue."""
+        async with self.requests_lock:
+            self.floor_requests.add(request)
+
+        # Notify all subscribers of the state change
+        await self.broadcast_update()
+
+    async def remove_floor_request(self, request_id: UUID) -> bool:
+        """Remove a floor request by ID.
+
+        Returns:
+            True if request was found and removed, False otherwise.
+        """
+        async with self.requests_lock:
+            request_to_remove = next(
+                (req for req in self.floor_requests if req.id == request_id),
+                None
+            )
+            if request_to_remove:
+                self.floor_requests.discard(request_to_remove)
+                # Notify all subscribers of the state change
+                await self.broadcast_update()
+                return True
+            return False
+
+    async def get_floor_requests(self) -> list[FloorRequest]:
+        """Get all floor requests, sorted by priority."""
+        async with self.requests_lock:
+            # Sort by the FloorRequest ordering (priority, then timestamp)
+            return sorted(self.floor_requests)
+
+    async def get_elevator_state(self) -> ElevatorState:
+        """Get current elevator state."""
+        async with self.elevator_lock:
+            return self.elevator_state.model_copy()
+
+    async def update_elevator_floor(self, floor: int) -> None:
+        """Update elevator's current floor."""
+        async with self.elevator_lock:
+            self.elevator_state.current_floor = floor
+
+        # Notify all subscribers of the state change
+        await self.broadcast_update()
+
+    async def update_elevator_direction(self, direction: Direction) -> None:
+        """Update elevator's direction."""
+        async with self.elevator_lock:
+            self.elevator_state.direction = direction
+
+        # Notify all subscribers of the state change
+        await self.broadcast_update()
+
+    async def set_operator(self, operator_id: Optional[UUID]) -> None:
+        """Set or clear the current operator."""
+        async with self.elevator_lock:
+            self.elevator_state.operator_id = operator_id
+
+        # Notify all subscribers of the state change
+        await self.broadcast_update()
+
+    async def calculate_next_floor(self) -> tuple[Optional[int], Direction]:
+        """Calculate the next floor using the SCAN algorithm.
+
+        Returns:
+            Tuple of (next_floor, direction)
+        """
+        async with self.elevator_lock, self.requests_lock:
+            return calculate_next_floor(
+                self.elevator_state.current_floor,
+                self.elevator_state.direction,
+                self.floor_requests,
+            )
+
+    async def get_state_update(self) -> FloorRequestUpdate:
+        """Get complete state update for polling or subscriptions."""
+        requests = await self.get_floor_requests()
+        elevator_state = await self.get_elevator_state()
+        next_floor, _ = await self.calculate_next_floor()
+
+        return FloorRequestUpdate(
+            requests=requests,
+            next_floor=next_floor,
+            current_floor=elevator_state.current_floor,
+            direction=elevator_state.direction,
+        )
+
+    async def subscribe(self) -> asyncio.Queue:
+        """Subscribe to state updates.
+
+        Returns:
+            Queue that will receive FloorRequestUpdate messages.
+        """
+        queue = asyncio.Queue(maxsize=100)
+        async with self.subscribers_lock:
+            self.subscribers.append(queue)
+        return queue
+
+    async def unsubscribe(self, queue: asyncio.Queue) -> None:
+        """Unsubscribe from state updates."""
+        async with self.subscribers_lock:
+            if queue in self.subscribers:
+                self.subscribers.remove(queue)
+
+    async def broadcast_update(self) -> None:
+        """Broadcast current state to all subscribers."""
+        update = await self.get_state_update()
+
+        async with self.subscribers_lock:
+            # Remove disconnected subscribers
+            dead_queues = []
+            for queue in self.subscribers:
+                try:
+                    queue.put_nowait(update)
+                except asyncio.QueueFull:
+                    # Queue is full, skip this update
+                    pass
+                except Exception:
+                    # Queue is closed or invalid, mark for removal
+                    dead_queues.append(queue)
+
+            for queue in dead_queues:
+                self.subscribers.remove(queue)
+
+
+# Global state instance
+state = ElevatorSystemState()

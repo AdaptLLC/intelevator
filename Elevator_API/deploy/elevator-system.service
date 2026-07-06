@@ -1,0 +1,31 @@
+[Unit]
+Description=Elevator System Python Backend
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=aaron
+Group=aaron
+WorkingDirectory=/opt/elevator-system
+Environment="PATH=/opt/elevator-system/venv/bin"
+ExecStart=/opt/elevator-system/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+# Restart policy
+Restart=always
+RestartSec=10
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=elevator-system
+
+# Resource limits
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

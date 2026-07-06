@@ -1,0 +1,14 @@
+tunnel: 35c5750b-0e79-4f6d-8fff-a6514cf67003
+credentials-file: /home/aaron/.cloudflared/35c5750b-0e79-4f6d-8fff-a6514cf67003.json
+
+ingress:
+  - hostname: backend.adapt-llc.com
+    service: http://localhost:8000
+    originRequest:
+      noTLSVerify: true
+      connectTimeout: 30s
+      tlsTimeout: 30s
+      tcpKeepAlive: 30s
+      keepAliveConnections: 1024
+      keepAliveTimeout: 90s
+  - service: http_status:404

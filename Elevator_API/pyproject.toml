@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=68.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "elevator-system"
+version = "2.0.0"
+description = "Python/FastAPI/GraphQL elevator system with SCAN routing algorithm"
+authors = [
+    {name = "Aaron Drake", email = "aaronjdrake@adapt-llc.com"}
+]
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi==0.115.0",
+    "strawberry-graphql[fastapi]==0.248.0",
+    "uvicorn[standard]==0.32.0",
+    "pydantic==2.9.0",
+    "pydantic-settings==2.6.0",
+    "python-multipart==0.0.12",
+    "resend>=2.5.0",
+    "sortedcontainers==2.4.0",
+    "python-dotenv==1.0.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "mypy>=1.8.0",
+    "ruff>=0.2.0",
+]
+
+[project.scripts]
+elevator-system = "app.main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false

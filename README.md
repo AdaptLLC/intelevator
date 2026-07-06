@@ -1,8 +1,8 @@
 
-# Multi-Elevator Simulation and Reinforcement Learning Control
+# Multi-Elevator Simulation, Reinforcement Learning Control, and Production API
 
 This project investigates and compares classic and AI-based strategies for optimizing elevator operations in a multi-agent environment.  
-It was developed as part of a university research project, with an emphasis on practical reinforcement learning, simulation, and comparative analytics.
+It spans simulation, RL training, and a production-ready API backend — from research baseline through to live deployment.
 
 ---
 
@@ -16,6 +16,8 @@ It was developed as part of a university research project, with an emphasis on p
   Allows replay and analysis of trained policies.
 - **Elevator_Reinforcement_Training:**  
   Training environment for RL agents (Stable Baselines3, Maskable PPO, SubprocVecEnv, etc.)
+- **Elevator_API:**  
+  Production FastAPI/GraphQL backend for live elevator control. Implements the SCAN algorithm as a real-time service with WebSocket subscriptions, priority queuing, and role-based access. Extended with AI-assisted routing. Built on earlier works in this repository.
 - **Documentation_in_german:**  
   German documentation of the training and evaluation process, with discussion of results and implementation notes.
 
@@ -91,6 +93,13 @@ It was developed as part of a university research project, with an emphasis on p
     python resume_training.py
   ```
 
+- **Production API:**
+  ```bash
+  cd Elevator_API
+  pip install -e .
+  elevator-system
+  ```
+
 For more details, see `Documentation_in_german/` and code comments.
 
 ---
@@ -118,7 +127,10 @@ For more details, see `Documentation_in_german/` and code comments.
 
 ## Contact
 
-Feel free to contact me if you have questions, need additional documentation, or want to discuss further improvements.
+Feel free to contact us if you have questions, need additional documentation, or want to discuss further improvements.
+
+- Original simulation & RL: Fr3ddog69  
+- Production API & extensions: Aaron Drake (ajdrake)
 
 ---
 
