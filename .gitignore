@@ -26,3 +26,16 @@ Thumbs.db
 # Project outputs
 EpisodeStats/
 Visualizations/
+checkpoints_episode/
+modell/
+
+# Media and binaries
+*.mp4
+*.zip
+
+# Environment and secrets
+.env
+
+# Logs
+*.log
+expo-logs.txt
