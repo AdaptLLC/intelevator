@@ -1,0 +1,2 @@
+# Track model checkpoints despite root *.zip rule
+!*.zip
