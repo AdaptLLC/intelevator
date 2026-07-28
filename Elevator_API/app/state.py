@@ -21,7 +21,7 @@ from .algorithm import calculate_next_floor
 from .rl_router import calculate_next_floor_rl, load_model as _load_rl_model
 
 # Attempt to load the latest PPO checkpoint at startup
-_MODEL_PATH = Path(__file__).parent.parent / "models" / "ppo_checkpoint_ep1409.zip"
+_MODEL_PATH = Path(__file__).parent.parent / "models" / "ppo_checkpoint_ep1688.zip"
 _rl_available = _load_rl_model(_MODEL_PATH)
 
 
