@@ -20,7 +20,7 @@ Built on open-source simulation and RL training foundations, extended into a ful
 - **Elevator_API:**  
   Production FastAPI/GraphQL backend for live elevator control. Implements the SCAN algorithm as a real-time service with WebSocket subscriptions, priority queuing, and role-based access. Extended with AI-assisted routing. Built on earlier works in this repository.
 - **Elevator_Mobile:**  
-  React Native / Expo mobile frontend for iOS and Android. Supports riders, operators, superintendents, and human elevator operators. Connects to the API via Apollo GraphQL with WebSocket subscriptions. EAS build configured for TestFlight and App Store deployment.
+  React Native / Expo mobile frontend for iOS and Android. Supports three roles: users (building occupants calling the elevator), operators (physically operating the elevator), and supers (building managers). Connects to the API via Apollo GraphQL with WebSocket subscriptions. EAS build configured for TestFlight and App Store deployment.
 - **Documentation_in_german:**  
   German documentation of the training and evaluation process, with discussion of results and implementation notes.
 

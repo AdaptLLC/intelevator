@@ -21,6 +21,14 @@ This backend replaces the original Rust implementation (Warp + Tokio) with a mod
 - **Email Notifications**: Login alerts via Resend API
 - **Type Safety**: Full type hints and Pydantic validation
 
+## Client Roles
+
+Three roles are supported:
+
+- **USER** — building occupant calling the elevator to a floor
+- **OPERATOR** — the person physically operating the elevator, reports current floor position
+- **SUPER** — superintendent or building manager with elevated access
+
 ## Quick Start
 
 ### Option A: Using UV (Recommended - Faster)
