@@ -415,34 +415,39 @@ kill -9 <PID>
 
 The current API routes elevator calls using the SCAN algorithm. The roadmap below describes how the trained PPO model from `Elevator_Reinforcement_Training` will be integrated into the API and continuously improved through a feedback loop with live operations.
 
+The API configuration targets 3 elevators and 10 floors, matching the training environment exactly. This is a hard requirement — the PPO model's observation vector is fixed at the shape produced by that configuration and cannot accept a different elevator count without retraining.
+
+### Model training
+
+No trained checkpoint is committed to the repo. Training must be run before Phase 1 can proceed. The `Elevator_Reinforcement_Training/training.py` script runs 500 episodes across 12 parallel environments and saves a versioned checkpoint after each episode. On CPU this takes several hours. The recommended path is a GPU instance (AWS g4dn.xlarge or Google Colab) to reduce training time to under an hour. The output file `ppo_maskable_elevator_model.zip` is committed to `models/` and loaded by the API at startup.
+
 ### Phase 1 — Connect the trained model to the API
 
-The trained PPO model is saved as a Stable Baselines3 checkpoint. The API will load it at startup and call `model.predict(obs, action_masks=masks)` in place of the SCAN algorithm in `algorithm.py`. The observation vector the environment produces maps directly to what the API already tracks: elevator positions, passenger counts per elevator, and waiting guests per floor. This phase replaces the routing logic in `algorithm.py` and extends `state.py` to build the observation array on each routing decision.
+The PPO model is a step-based controller: each call to `model.predict(obs, action_masks=masks)` returns one action per elevator (wait, up, or down) for a single simulation timestep. The API is event-driven — it receives a floor call and must return a target floor. To bridge these two models, a mini-simulation loop in `rl_router.py` runs the model forward from the current building state until the model commits an elevator to a floor target. This loop is the translation layer between the model's timestep-level output and the API's request-response routing. The observation vector is built from live API state: elevator positions, passenger counts, and waiting guests per floor, matching the shape the training environment produces.
 
 ### Phase 2 — Operational event logging
 
-Every boarding and dropoff event the API processes carries the data needed to compute the reward signal: wait time, ride time, floor, and timestamp. These events will be written to a Postgres table. A background job replays recent operational episodes through the simulation environment to generate training data shaped by real building traffic patterns rather than synthetic spawning alone.
+Every boarding and dropoff event carries the data needed to compute the reward signal: wait time, ride time, floor, and timestamp. These events are written to a Supabase Postgres instance via the standard asyncpg driver using the connection string from environment variables. A background job replays recent operational episodes through the simulation environment to generate training data shaped by real building traffic rather than synthetic spawning alone. Supabase is used for the POC; migration to a self-hosted or cloud-managed Postgres instance (via Terraform or Bicep) is straightforward when the project moves to production deployment.
 
 ### Phase 3 — Continuous retraining
 
-A scheduled job (nightly or weekly) takes the accumulated operational logs, runs a `resume_training.py` pass using the current model checkpoint as the starting point, and saves a new versioned checkpoint. The API loads the updated model at startup or via a hot-reload endpoint without requiring a full restart. The simulation environment already supports resuming from a checkpoint, so the training scaffolding is in place.
+A scheduled job (nightly or weekly) takes the accumulated operational logs, runs a `resume_training.py` pass using the current model checkpoint as the starting point, and saves a new versioned checkpoint. The API loads the updated model at startup or via a hot-reload endpoint without requiring a full restart.
 
-### Phase 4 — Drift detection and fallback
+### Phase 4 — Decision logging and drift data collection
 
-A rolling performance monitor compares the RL model's average wait time against the SCAN baseline on a recent window of live operations. If the RL model degrades past a defined threshold (for example, average wait time exceeds the SCAN baseline by more than 10%), the API falls back to SCAN automatically until the next retrain cycle completes and the new model is validated.
+On every routing decision, the API logs both what SCAN would have chosen and what the RL model chose, along with the full observation vector at the time of the decision and the resulting outcome (wait time, ride time) when the request completes. This side-by-side record is the foundation for drift detection. Automated fallback to SCAN is not triggered in this phase. The threshold for automated fallback will be calibrated from this logged data after enough real decisions accumulate to establish a meaningful baseline. The logging schema and a read query for comparing SCAN vs. RL outcomes over rolling time windows are defined in `app/event_log.py`.
 
 ### Planned additions to project structure
 
 ```
 Elevator_API/
 ├── app/
-│   ├── algorithm.py         # SCAN algorithm (current baseline)
-│   ├── rl_router.py         # PPO model loader and predict wrapper (planned)
-│   ├── event_log.py         # Operational event logging to Postgres (planned)
-│   ├── drift_monitor.py     # Rolling performance comparison (planned)
+│   ├── algorithm.py         # SCAN algorithm (baseline, used for comparison logging)
+│   ├── rl_router.py         # PPO model loader, mini-simulation loop, predict wrapper (planned)
+│   ├── event_log.py         # Operational event logging and decision comparison to Supabase (planned)
 │   └── ...
 ├── models/
-│   └── ppo_maskable_elevator_model.zip  # Trained checkpoint from Elevator_Reinforcement_Training
+│   └── ppo_maskable_elevator_model.zip  # Trained checkpoint (to be committed after training run)
 ├── jobs/
 │   └── retrain.py           # Scheduled retraining job (planned)
 ```
