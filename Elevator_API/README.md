@@ -16,6 +16,14 @@ cd Elevator_API
 uv run python simulate.py
 ```
 
+**Terminal 2 (alternative) — run PPO vs SCAN side-by-side comparison:**
+```bash
+cd Elevator_API
+uv run python simulate_compare.py
+```
+
+The comparison script runs both routing algorithms against the same stream of floor requests. PPO routes through the live API; SCAN runs in-process. The split-panel display shows each elevator's position, pending requests, per-floor served counts, and a final summary of requests served and average wait time.
+
 The simulation registers as an operator, spawns random floor requests every 1–4 seconds, and displays a live building visualisation showing the elevator moving, floors with pending requests, and a running tally of requests served vs. spawned. The PPO model (`models/ppo_checkpoint_ep1688.zip`) routes all decisions; if the model times out (>3s), routing falls back to SCAN automatically.
 
 To update the RL checkpoint to a newer training episode:
@@ -446,15 +454,19 @@ No trained checkpoint is committed to the repo. Training must be run before Phas
 
 `rl_router.py` is wired into `state.py`. The PPO model is a step-based controller: each call to `model.predict(obs, action_masks=masks)` returns one action per elevator (wait, up, or down) for a single simulation timestep. The API is event-driven — it receives a floor call and must return a target floor. A mini-simulation loop in `rl_router.py` runs the model forward from the current building state until it commits an elevator to a floor target. Predictions run in a `ThreadPoolExecutor` so they don't block the FastAPI event loop, with a 3-second timeout that falls back to SCAN if the model doesn't converge. The poll endpoint uses RL routing; broadcast updates use SCAN to keep the event loop clear.
 
-### Phase 2 — Operational event logging
+### Phase 2 — PPO vs SCAN comparison simulation ✓ Complete
+
+`simulate_compare.py` runs both algorithms against the same live request stream. PPO routes via the API; SCAN runs in-process. The split-panel Rich display shows each elevator moving in real time with per-floor served counts, pending requests, and a final served/wait-time summary. At episode 1688 the PPO model underperforms SCAN (14/36 served, 18.9 step avg wait vs 36/36 at 3.4 steps), establishing the baseline that further training must beat.
+
+### Phase 3 — Operational event logging
 
 Every boarding and dropoff event carries the data needed to compute the reward signal: wait time, ride time, floor, and timestamp. These events are written to a Supabase Postgres instance via the standard asyncpg driver using the connection string from environment variables. A background job replays recent operational episodes through the simulation environment to generate training data shaped by real building traffic rather than synthetic spawning alone. Supabase is used for the POC; migration to a self-hosted or cloud-managed Postgres instance (via Terraform or Bicep) is straightforward when the project moves to production deployment.
 
-### Phase 3 — Continuous retraining
+### Phase 4 — Continuous retraining
 
 A scheduled job (nightly or weekly) takes the accumulated operational logs, runs a `resume_training.py` pass using the current model checkpoint as the starting point, and saves a new versioned checkpoint. The API loads the updated model at startup or via a hot-reload endpoint without requiring a full restart.
 
-### Phase 4 — Decision logging and drift data collection
+### Phase 5 — Decision logging and drift data collection
 
 On every routing decision, the API logs both what SCAN would have chosen and what the RL model chose, along with the full observation vector at the time of the decision and the resulting outcome (wait time, ride time) when the request completes. This side-by-side record is the foundation for drift detection. Automated fallback to SCAN is not triggered in this phase. The threshold for automated fallback will be calibrated from this logged data after enough real decisions accumulate to establish a meaningful baseline. The logging schema and a read query for comparing SCAN vs. RL outcomes over rolling time windows are defined in `app/event_log.py`.
 
@@ -472,6 +484,7 @@ Elevator_API/
 ├── jobs/
 │   └── retrain.py           # Scheduled retraining job (Phase 3)
 ├── simulate.py              # Real-time terminal simulation with Rich dashboard ✓
+├── simulate_compare.py      # PPO vs SCAN split-panel comparison ✓
 ```
 
 ## License
