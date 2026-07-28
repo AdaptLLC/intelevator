@@ -21,6 +21,9 @@ dependencies = [
     "resend>=2.5.0",
     "sortedcontainers==2.4.0",
     "python-dotenv==1.0.1",
+    "stable-baselines3>=2.3.0",
+    "sb3-contrib>=2.3.0",
+    "numpy>=1.26.0",
 ]
 
 [project.optional-dependencies]

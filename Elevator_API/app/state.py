@@ -8,6 +8,8 @@ from uuid import UUID
 from datetime import datetime
 from sortedcontainers import SortedSet
 
+from pathlib import Path
+
 from .models import (
     ClientInfo,
     FloorRequest,
@@ -16,6 +18,11 @@ from .models import (
     FloorRequestUpdate,
 )
 from .algorithm import calculate_next_floor
+from .rl_router import calculate_next_floor_rl, load_model as _load_rl_model
+
+# Attempt to load the latest PPO checkpoint at startup
+_MODEL_PATH = Path(__file__).parent.parent / "models" / "ppo_checkpoint_ep95.zip"
+_rl_available = _load_rl_model(_MODEL_PATH)
 
 
 class ElevatorSystemState:
@@ -129,12 +136,21 @@ class ElevatorSystemState:
         await self.broadcast_update()
 
     async def calculate_next_floor(self) -> tuple[Optional[int], Direction]:
-        """Calculate the next floor using the SCAN algorithm.
+        """Calculate the next floor, using RL when available, SCAN as fallback.
 
         Returns:
             Tuple of (next_floor, direction)
         """
         async with self.elevator_lock, self.requests_lock:
+            if _rl_available:
+                rl_floor, rl_dir = calculate_next_floor_rl(
+                    self.elevator_state.current_floor,
+                    self.elevator_state.direction,
+                    self.floor_requests,
+                )
+                if rl_floor is not None:
+                    return rl_floor, rl_dir
+
             return calculate_next_floor(
                 self.elevator_state.current_floor,
                 self.elevator_state.direction,
