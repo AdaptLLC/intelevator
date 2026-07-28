@@ -411,6 +411,42 @@ kill -9 <PID>
 2. Check firewall allows WebSocket connections
 3. Verify CORS settings allow your origin
 
+## RL Integration Roadmap
+
+The current API routes elevator calls using the SCAN algorithm. The roadmap below describes how the trained PPO model from `Elevator_Reinforcement_Training` will be integrated into the API and continuously improved through a feedback loop with live operations.
+
+### Phase 1 — Connect the trained model to the API
+
+The trained PPO model is saved as a Stable Baselines3 checkpoint. The API will load it at startup and call `model.predict(obs, action_masks=masks)` in place of the SCAN algorithm in `algorithm.py`. The observation vector the environment produces maps directly to what the API already tracks: elevator positions, passenger counts per elevator, and waiting guests per floor. This phase replaces the routing logic in `algorithm.py` and extends `state.py` to build the observation array on each routing decision.
+
+### Phase 2 — Operational event logging
+
+Every boarding and dropoff event the API processes carries the data needed to compute the reward signal: wait time, ride time, floor, and timestamp. These events will be written to a Postgres table. A background job replays recent operational episodes through the simulation environment to generate training data shaped by real building traffic patterns rather than synthetic spawning alone.
+
+### Phase 3 — Continuous retraining
+
+A scheduled job (nightly or weekly) takes the accumulated operational logs, runs a `resume_training.py` pass using the current model checkpoint as the starting point, and saves a new versioned checkpoint. The API loads the updated model at startup or via a hot-reload endpoint without requiring a full restart. The simulation environment already supports resuming from a checkpoint, so the training scaffolding is in place.
+
+### Phase 4 — Drift detection and fallback
+
+A rolling performance monitor compares the RL model's average wait time against the SCAN baseline on a recent window of live operations. If the RL model degrades past a defined threshold (for example, average wait time exceeds the SCAN baseline by more than 10%), the API falls back to SCAN automatically until the next retrain cycle completes and the new model is validated.
+
+### Planned additions to project structure
+
+```
+Elevator_API/
+├── app/
+│   ├── algorithm.py         # SCAN algorithm (current baseline)
+│   ├── rl_router.py         # PPO model loader and predict wrapper (planned)
+│   ├── event_log.py         # Operational event logging to Postgres (planned)
+│   ├── drift_monitor.py     # Rolling performance comparison (planned)
+│   └── ...
+├── models/
+│   └── ppo_maskable_elevator_model.zip  # Trained checkpoint from Elevator_Reinforcement_Training
+├── jobs/
+│   └── retrain.py           # Scheduled retraining job (planned)
+```
+
 ## License
 
 Same as original Rust implementation.
