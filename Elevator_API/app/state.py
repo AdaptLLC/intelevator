@@ -8,6 +8,8 @@ from uuid import UUID
 from datetime import datetime
 from sortedcontainers import SortedSet
 
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from .models import (
@@ -23,6 +25,7 @@ from .rl_router import calculate_next_floor_rl, load_model as _load_rl_model
 # Attempt to load the latest PPO checkpoint at startup
 _MODEL_PATH = Path(__file__).parent.parent / "models" / "ppo_checkpoint_ep1688.zip"
 _rl_available = _load_rl_model(_MODEL_PATH)
+_rl_executor = ThreadPoolExecutor(max_workers=1)
 
 
 class ElevatorSystemState:
@@ -88,6 +91,7 @@ class ElevatorSystemState:
         Returns:
             True if request was found and removed, False otherwise.
         """
+        found = False
         async with self.requests_lock:
             request_to_remove = next(
                 (req for req in self.floor_requests if req.id == request_id),
@@ -95,10 +99,10 @@ class ElevatorSystemState:
             )
             if request_to_remove:
                 self.floor_requests.discard(request_to_remove)
-                # Notify all subscribers of the state change
-                await self.broadcast_update()
-                return True
-            return False
+                found = True
+        if found:
+            await self.broadcast_update()
+        return found
 
     async def get_floor_requests(self) -> list[FloorRequest]:
         """Get all floor requests, sorted by priority."""
@@ -142,26 +146,46 @@ class ElevatorSystemState:
             Tuple of (next_floor, direction)
         """
         async with self.elevator_lock, self.requests_lock:
-            if _rl_available:
-                rl_floor, rl_dir = calculate_next_floor_rl(
-                    self.elevator_state.current_floor,
-                    self.elevator_state.direction,
-                    self.floor_requests,
+            current_floor = self.elevator_state.current_floor
+            direction = self.elevator_state.direction
+            requests = set(self.floor_requests)
+
+        if _rl_available:
+            loop = asyncio.get_running_loop()
+            try:
+                rl_floor, rl_dir = await asyncio.wait_for(
+                    loop.run_in_executor(
+                        _rl_executor,
+                        calculate_next_floor_rl,
+                        current_floor,
+                        direction,
+                        requests,
+                    ),
+                    timeout=3.0,
                 )
                 if rl_floor is not None:
                     return rl_floor, rl_dir
+            except asyncio.TimeoutError:
+                logger.warning("RL prediction timed out — falling back to SCAN")
 
-            return calculate_next_floor(
-                self.elevator_state.current_floor,
-                self.elevator_state.direction,
-                self.floor_requests,
-            )
+        return calculate_next_floor(current_floor, direction, requests)
 
-    async def get_state_update(self) -> FloorRequestUpdate:
-        """Get complete state update for polling or subscriptions."""
+    async def get_state_update(self, use_rl: bool = False) -> FloorRequestUpdate:
+        """Get complete state update for polling or subscriptions.
+
+        use_rl=True runs the full RL prediction (for explicit poll requests).
+        use_rl=False uses SCAN only (for broadcast, keeps event loop free).
+        """
         requests = await self.get_floor_requests()
         elevator_state = await self.get_elevator_state()
-        next_floor, _ = await self.calculate_next_floor()
+        if use_rl:
+            next_floor, _ = await self.calculate_next_floor()
+        else:
+            next_floor, _ = calculate_next_floor(
+                elevator_state.current_floor,
+                elevator_state.direction,
+                set(requests),
+            )
 
         return FloorRequestUpdate(
             requests=requests,

@@ -175,8 +175,8 @@ async def poll_rest(client_id: str):
         # Update client's last poll time
         await state.update_client_poll_time(client_uuid)
 
-        # Get current state
-        update = await state.get_state_update()
+        # Get current state — use RL routing for poll responses
+        update = await state.get_state_update(use_rl=True)
 
         return {
             "type": "FloorRequestUpdate",

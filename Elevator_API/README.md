@@ -1,6 +1,27 @@
 # Elevator System - Python Backend
 
-Python/FastAPI/GraphQL migration of the Rust elevator system with modern real-time subscriptions.
+Python/FastAPI/GraphQL migration of the Rust elevator system with modern real-time subscriptions and PPO reinforcement learning routing.
+
+## Running the API and Simulation
+
+**Terminal 1 — start the API:**
+```bash
+cd Elevator_API
+uv run uvicorn app.main:app --port 8000
+```
+
+**Terminal 2 — run the real-time RL simulation:**
+```bash
+cd Elevator_API
+uv run python simulate.py
+```
+
+The simulation registers as an operator, spawns random floor requests every 1–4 seconds, and displays a live building visualisation showing the elevator moving, floors with pending requests, and a running tally of requests served vs. spawned. The PPO model (`models/ppo_checkpoint_ep1688.zip`) routes all decisions; if the model times out (>3s), routing falls back to SCAN automatically.
+
+To update the RL checkpoint to a newer training episode:
+1. Copy the desired zip from `../Elevator_Reinforcement_Training/checkpoints_episode/` into `models/`.
+2. Update `_MODEL_PATH` in `app/state.py` to point to the new filename.
+3. Restart the API.
 
 ## Overview
 
@@ -421,9 +442,9 @@ The API configuration targets 3 elevators and 10 floors, matching the training e
 
 No trained checkpoint is committed to the repo. Training must be run before Phase 1 can proceed. The `Elevator_Reinforcement_Training/training.py` script runs 500 episodes across 12 parallel environments and saves a versioned checkpoint after each episode. On CPU this takes several hours. The recommended path is a GPU instance (AWS g4dn.xlarge or Google Colab) to reduce training time to under an hour. The output file `ppo_maskable_elevator_model.zip` is committed to `models/` and loaded by the API at startup.
 
-### Phase 1 — Connect the trained model to the API
+### Phase 1 — Connect the trained model to the API ✓ Complete
 
-The PPO model is a step-based controller: each call to `model.predict(obs, action_masks=masks)` returns one action per elevator (wait, up, or down) for a single simulation timestep. The API is event-driven — it receives a floor call and must return a target floor. To bridge these two models, a mini-simulation loop in `rl_router.py` runs the model forward from the current building state until the model commits an elevator to a floor target. This loop is the translation layer between the model's timestep-level output and the API's request-response routing. The observation vector is built from live API state: elevator positions, passenger counts, and waiting guests per floor, matching the shape the training environment produces.
+`rl_router.py` is wired into `state.py`. The PPO model is a step-based controller: each call to `model.predict(obs, action_masks=masks)` returns one action per elevator (wait, up, or down) for a single simulation timestep. The API is event-driven — it receives a floor call and must return a target floor. A mini-simulation loop in `rl_router.py` runs the model forward from the current building state until it commits an elevator to a floor target. Predictions run in a `ThreadPoolExecutor` so they don't block the FastAPI event loop, with a 3-second timeout that falls back to SCAN if the model doesn't converge. The poll endpoint uses RL routing; broadcast updates use SCAN to keep the event loop clear.
 
 ### Phase 2 — Operational event logging
 
@@ -443,13 +464,14 @@ On every routing decision, the API logs both what SCAN would have chosen and wha
 Elevator_API/
 ├── app/
 │   ├── algorithm.py         # SCAN algorithm (baseline, used for comparison logging)
-│   ├── rl_router.py         # PPO model loader, mini-simulation loop, predict wrapper (planned)
-│   ├── event_log.py         # Operational event logging and decision comparison to Supabase (planned)
+│   ├── rl_router.py         # PPO model loader, mini-simulation loop, predict wrapper ✓
+│   ├── event_log.py         # Operational event logging and decision comparison to Supabase (Phase 2)
 │   └── ...
 ├── models/
-│   └── ppo_maskable_elevator_model.zip  # Trained checkpoint (to be committed after training run)
+│   └── ppo_checkpoint_ep1688.zip  # Trained checkpoint — episode 1688 ✓
 ├── jobs/
-│   └── retrain.py           # Scheduled retraining job (planned)
+│   └── retrain.py           # Scheduled retraining job (Phase 3)
+├── simulate.py              # Real-time terminal simulation with Rich dashboard ✓
 ```
 
 ## License
