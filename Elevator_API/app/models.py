@@ -124,6 +124,30 @@ class UpdateOperatorFloorRequest(BaseModel):
     floor: int
 
 
+class PassengerRecord(BaseModel):
+    """A boarded passenger with a known destination.
+
+    Created when the elevator arrives at a call floor and the passenger
+    selects their destination on the in-car panel (/api/board).
+    Removed when the elevator arrives at the destination (/api/alight).
+    """
+    id: UUID
+    call_floor: int
+    destination_floor: int
+    boarded_at: datetime
+
+
+class BoardRequest(BaseModel):
+    """Passenger boards the elevator and declares destination."""
+    request_id: UUID
+    destination_floor: int
+
+
+class AlightRequest(BaseModel):
+    """Passenger alights at their destination floor."""
+    passenger_id: UUID
+
+
 class RegisterRequest(BaseModel):
     """Request to register a new client."""
     role: ClientRole

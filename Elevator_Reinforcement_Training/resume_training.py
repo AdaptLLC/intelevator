@@ -29,11 +29,10 @@ def make_env():
 if __name__ == "__main__":
     env = SubprocVecEnv([make_env() for _ in range(12)])
 
-    # <-- Load model from last checkpoint here!
-    last_checkpoint = "./checkpoints_episode/ppo_elevator_episode_1268.zip"
+    last_checkpoint = "./checkpoints_episode/ppo_elevator_episode_1688.zip"
     model = MaskablePPO.load(last_checkpoint, env=env)
 
-    n_episodes = 50  # or however many you want to continue training
+    n_episodes = 2000  # overnight run — target ep3688
     stop_callback = StopTrainingOnEpisodes(n_episodes=n_episodes, verbose=1)
     episode_checkpoint = EpisodeCheckpointCallback(
         save_path="./checkpoints_episode", name_prefix="ppo_elevator"

@@ -5,11 +5,11 @@ decision compatible with the existing calculate_next_floor() signature.
 """
 import logging
 from pathlib import Path
-from typing import Optional, Set
+from typing import Optional, Set, List
 
 import numpy as np
 
-from .models import Direction, FloorRequest, Priority
+from .models import Direction, FloorRequest, PassengerRecord, Priority
 
 logger = logging.getLogger(__name__)
 
@@ -50,27 +50,42 @@ def load_model(model_path: Path) -> bool:
         return False
 
 
-def _build_obs(current_floor: int, requests: Set[FloorRequest]) -> np.ndarray:
+def _build_obs(
+    current_floor: int,
+    requests: Set[FloorRequest],
+    passengers: List[PassengerRecord],
+) -> np.ndarray:
     """Build a 46-element observation vector from live API state.
 
-    The observation space is always 3-elevator × 12 features + 10 waiting floors = 46,
-    matching the training environment. Elevator 0 carries live state; the rest are zeroed.
-    API floors are 1-indexed; the training env is 0-indexed.
+    Layout (matches MultiElevatorEnv training environment exactly):
+      Elevator 0: current_floor(1) + num_passengers(1) + dest_histogram(10) = 12
+      Elevator 1: zeroed (12)
+      Elevator 2: zeroed (12)
+      Waiting per floor: (10)
+      Total: 46
+
+    API floors are 1-indexed; training env is 0-indexed.
+    Passengers come from /api/board records — destination histogram is now real.
     """
     obs = []
 
-    # Elevator 0: live state (shift to 0-indexed)
+    # Elevator 0: live position, boarded passenger count, destination histogram
     obs.append(max(0, current_floor - 1))
-    obs.append(0)  # passengers unknown at API level
-    obs.extend([0] * NUM_FLOORS)  # destination histogram unknown
+    obs.append(len(passengers))
+    dest_hist = [0] * NUM_FLOORS
+    for p in passengers:
+        idx = p.destination_floor - 1
+        if 0 <= idx < NUM_FLOORS:
+            dest_hist[idx] += 1
+    obs.extend(dest_hist)
 
-    # Elevators 1 and 2: zeroed regardless of model action space size
+    # Elevators 1 and 2: zeroed (single-elevator API)
     for _ in range(NUM_ELEVATORS - 1):
         obs.append(0)
         obs.append(0)
         obs.extend([0] * NUM_FLOORS)
 
-    # Waiting guests per floor derived from floor requests
+    # Waiting guests per floor from pending call requests
     waiting_per_floor = [0] * NUM_FLOORS
     for req in requests:
         floor_idx = req.floor - 1
@@ -102,6 +117,7 @@ def calculate_next_floor_rl(
     current_floor: int,
     direction: Direction,
     requests: Set[FloorRequest],
+    passengers: Optional[List[PassengerRecord]] = None,
     max_steps: int = 20,
 ) -> tuple[Optional[int], Direction]:
     """Return (target_floor, direction) using the PPO model.
@@ -114,8 +130,10 @@ def calculate_next_floor_rl(
     if _model is None:
         return None, direction
 
-    if not requests:
+    if not requests and not passengers:
         return None, Direction.IDLE
+
+    passengers = passengers or []
 
     # Emergency requests bypass RL — immediate priority
     emergency = next(
@@ -129,15 +147,19 @@ def calculate_next_floor_rl(
             return target, Direction.DOWN
         return target, Direction.IDLE
 
+    # Target floors: pending calls + boarded passenger destinations
     request_floors = {r.floor for r in requests}
+    dest_floors = {p.destination_floor for p in passengers}
+    all_target_floors = request_floors | dest_floors
+
     sim_floor = current_floor  # 1-indexed (API convention)
 
     for _ in range(max_steps):
-        obs = _build_obs(sim_floor, requests)
+        obs = _build_obs(sim_floor, requests, passengers)
 
-        # In the mini-sim we force a directional decision: mask out wait unless
-        # the elevator is already at a requested floor (where waiting is meaningful).
-        at_request = sim_floor in request_floors
+        # Force a directional decision: allow wait only when at a target floor
+        # (pending call or passenger destination).
+        at_request = sim_floor in all_target_floors
         can_go_up = sim_floor < NUM_FLOORS
         can_go_down = sim_floor > 1
         mask = np.array([
@@ -166,7 +188,7 @@ def calculate_next_floor_rl(
         elif elevator_action == ACTION_DOWN and can_go_down:
             sim_floor -= 1
 
-        if sim_floor in request_floors:
+        if sim_floor in all_target_floors:
             new_dir = _direction_from_action(elevator_action)
             if new_dir == Direction.IDLE:
                 if sim_floor > current_floor:

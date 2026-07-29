@@ -20,6 +20,8 @@ from .models import (
     CallElevatorRequest,
     CompleteFloorRequest,
     UpdateOperatorFloorRequest,
+    BoardRequest,
+    AlightRequest,
     ClientInfo,
     FloorRequest,
     Priority,
@@ -135,6 +137,51 @@ async def complete_floor_rest(request: CompleteFloorRequest):
             status_code=500,
             content={"type": "Error", "message": str(e)},
         )
+
+
+@app.post("/api/board")
+async def board_passenger_rest(request: BoardRequest):
+    """Passenger boards elevator at call floor and declares destination.
+
+    Called when the elevator arrives at the call floor and the passenger
+    selects their destination on the in-car panel. Converts the pending
+    floor request into an in-elevator PassengerRecord.
+    """
+    try:
+        passenger = await state.board_passenger(request.request_id, request.destination_floor)
+        if passenger:
+            return {
+                "type": "Boarded",
+                "passenger_id": str(passenger.id),
+                "destination_floor": passenger.destination_floor,
+            }
+        return JSONResponse(
+            status_code=404,
+            content={"type": "Error", "message": "Floor request not found"},
+        )
+    except Exception as e:
+        logger.error(f"Error in board: {e}")
+        return JSONResponse(status_code=500, content={"type": "Error", "message": str(e)})
+
+
+@app.post("/api/alight")
+async def alight_passenger_rest(request: AlightRequest):
+    """Passenger alights at their destination floor.
+
+    Called when the elevator arrives at the passenger's declared destination.
+    Removes the PassengerRecord from in-elevator state.
+    """
+    try:
+        success = await state.alight_passenger(request.passenger_id)
+        if success:
+            return {"type": "Success", "message": "Passenger alighted"}
+        return JSONResponse(
+            status_code=404,
+            content={"type": "Error", "message": "Passenger not found"},
+        )
+    except Exception as e:
+        logger.error(f"Error in alight: {e}")
+        return JSONResponse(status_code=500, content={"type": "Error", "message": str(e)})
 
 
 @app.post("/api/update")

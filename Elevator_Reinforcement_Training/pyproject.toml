@@ -19,3 +19,6 @@ dependencies = [
     "numpy>=1.26.0",
     "torch>=2.0.0",
 ]
+
+[tool.setuptools.packages.find]
+exclude = ["checkpoints_episode*", "ppo_elevator_tensorboard*"]
