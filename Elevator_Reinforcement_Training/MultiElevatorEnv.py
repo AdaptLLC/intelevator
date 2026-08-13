@@ -91,10 +91,6 @@ class MultiElevatorEnv(gym.Env):
         mask[0] = True
         if elevator.busy_time > 0:
             return [1, 1, 1]
-        if elevator.busy_time <= 0 and elevator.pending_action is not None:
-            if elevator.pending_action[0] == "close":
-                mask[0] = False
-            elevator.pending_action = None
 
         if not elevator._guests_waiting_or_leaving():
             mask[0] = False
@@ -170,7 +166,7 @@ class MultiElevatorEnv(gym.Env):
             start_floor = floor
 
         if direction == "up":
-            possible_targets = [f for f in range(0, self.num_floors)]
+            possible_targets = [f for f in range(1, self.num_floors)]
 
         target_floor = np.random.choice(possible_targets)
         guest = Guest(
@@ -182,6 +178,7 @@ class MultiElevatorEnv(gym.Env):
             waiting_since=self.episode_steps,
             entered_elevator_step=None,
         )
+        guest.working_time_left = max(1, int(np.random.normal(self.working_time_mean, self.working_time_std)))
         self._next_guest_id += 1
         self.guests_in_building += 1
         self.allguests.append(guest)
@@ -220,14 +217,14 @@ class MultiElevatorEnv(gym.Env):
                     leaving = elev.dropoff_guests()
                     if leaving:
                         for g in leaving:
-                            waited_steps = int(
-                                (self.episode_steps - g.entered_elevator_step) / 60
-                            )
+                            ride_steps = self.episode_steps - g.entered_elevator_step
+                            wait_steps = g.entered_elevator_step - g.waiting_since
+                            total_steps = wait_steps + ride_steps
+                            # Large bonus for delivery, decaying with time taken
+                            reward += max(1, 50 - int(total_steps / 60))
                             self.guests_in_elevator.remove(g)
-                            h = 20 - waited_steps
-                            reward += max(1, h)
 
-        # Finish actions + reward for boarding + reward for dropoff
+        # Boarding reward
         for elev in self.elevators:
             if elev.busy_time <= 0 and elev.pending_action is not None:
                 if elev.pending_action[0] == "open":
@@ -238,11 +235,8 @@ class MultiElevatorEnv(gym.Env):
                         for g in boarded_guests:
                             self.waiting_guests.remove(g)
                             self.guests_in_elevator.append(g)
-                            waited_steps = int(
-                                (self.episode_steps - g.waiting_since) / 60
-                            )
-                            h = 10 - waited_steps
-                            reward += max(1, h)
+                            wait_steps = self.episode_steps - g.waiting_since
+                            reward += max(1, 10 - int(wait_steps / 60))
 
         if len(self.left_guests) + len(self.guests_in_elevator) + len(
             self.guests_on_floors
@@ -253,8 +247,9 @@ class MultiElevatorEnv(gym.Env):
         )
         truncated = False
         info = {}
-        reward -= 0.1 * len(self.waiting_guests)
-        reward -= 0.05 * len(self.guests_in_elevator)
+        # Per-step penalties: waiting guests hurt more than riding guests
+        reward -= 0.5 * len(self.waiting_guests)
+        reward -= 0.1 * len(self.guests_in_elevator)
         self.total_reward += reward
         info["action_mask"] = self.get_action_mask()
         if done:

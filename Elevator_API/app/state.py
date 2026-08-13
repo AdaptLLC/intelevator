@@ -20,7 +20,7 @@ from .rl_router import calculate_next_floor_rl, load_model as _load_rl_model
 
 logger = logging.getLogger(__name__)
 
-_MODEL_PATH = Path(__file__).parent.parent / "models" / "ppo_checkpoint_ep1688.zip"
+_MODEL_PATH = Path(__file__).parent.parent / "models" / "ppo_checkpoint_ep3748_failed.zip"
 _rl_available = _load_rl_model(_MODEL_PATH)
 _rl_executor = ThreadPoolExecutor(max_workers=1)
 

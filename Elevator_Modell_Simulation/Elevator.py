@@ -133,8 +133,6 @@ class Elevator:
                 )
                 leaving.append(g)
                 if g.working_time_left > 0:
-                    elevator_time = self.multielevator.episode_steps - g.waiting_since
-                    g.working_time_left -= elevator_time
                     self.multielevator.guests_on_floors.append(g)
                 else:
                     g.state = "left"

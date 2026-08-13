@@ -27,11 +27,12 @@ Thumbs.db
 EpisodeStats/
 Visualizations/
 checkpoints_episode/
-modell/
 
 # Media and binaries
 *.mp4
 *.zip
+!Elevator_Reinforcement_Training/checkpoints_v2/ppo_elevator_episode_200.zip
+!Elevator_Modell_Simulation/modell/ppo_checkpoint_ep3748_failed.zip
 
 # Environment and secrets
 .env
