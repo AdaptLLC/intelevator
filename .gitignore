@@ -31,6 +31,7 @@ checkpoints_episode/
 # Media and binaries
 *.mp4
 *.zip
+!Elevator_Modell_Simulation/elevator_sim_comparison.mp4
 !Elevator_Reinforcement_Training/checkpoints_v2/ppo_elevator_episode_200.zip
 !Elevator_Modell_Simulation/modell/ppo_checkpoint_ep3748_failed.zip
 

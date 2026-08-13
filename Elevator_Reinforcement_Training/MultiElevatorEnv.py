@@ -212,8 +212,9 @@ class MultiElevatorEnv(gym.Env):
         # Finish actions + reward for dropoff
         for elev in self.elevators:
             if elev.busy_time <= 0 and elev.pending_action is not None:
+                action_type = elev.pending_action[0]
                 elev.execute_pending_action()
-                if elev.pending_action[0] == "open":
+                if action_type == "open":
                     leaving = elev.dropoff_guests()
                     if leaving:
                         for g in leaving:
@@ -226,17 +227,14 @@ class MultiElevatorEnv(gym.Env):
 
         # Boarding reward
         for elev in self.elevators:
-            if elev.busy_time <= 0 and elev.pending_action is not None:
-                if elev.pending_action[0] == "open":
-                    boarded_guests = elev.board_guests(
-                        self.waiting_guests,
-                    )
-                    if boarded_guests:
-                        for g in boarded_guests:
-                            self.waiting_guests.remove(g)
-                            self.guests_in_elevator.append(g)
-                            wait_steps = self.episode_steps - g.waiting_since
-                            reward += max(1, 10 - int(wait_steps / 60))
+            if elev.busy_time <= 0 and elev.pending_action is None and elev.door_open:
+                boarded_guests = elev.board_guests(self.waiting_guests)
+                if boarded_guests:
+                    for g in boarded_guests:
+                        self.waiting_guests.remove(g)
+                        self.guests_in_elevator.append(g)
+                        wait_steps = self.episode_steps - g.waiting_since
+                        reward += max(1, 10 - int(wait_steps / 60))
 
         if len(self.left_guests) + len(self.guests_in_elevator) + len(
             self.guests_on_floors

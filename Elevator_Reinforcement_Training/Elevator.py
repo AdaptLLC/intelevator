@@ -59,21 +59,18 @@ class Elevator:
             self.busy_time -= 1
             return  # No new action while "busy"
 
+        if self.pending_action is not None:
+            return  # Wait for current pending action to be executed
+
         if self.door_open:
-            # Door is open: automatically close after waiting
             self.busy_time = self.door_time - 1
             self.pending_action = ("close", None)
             return
 
-        # Door is closed and elevator is ready for a new action
-        if action == 0:  # wait (elevator stays on the floor)
-            # Check if there are guests to board or leave
+        if action == 0:  # wait
             if self._guests_waiting_or_leaving():
                 self.busy_time = self.door_time - 1
                 self.pending_action = ("open", None)
-            # Otherwise, really wait
-            else:
-                self.pending_action = ("close", None)
         elif action == 1:  # up
             if self.current_floor < self.max_floor and not self.door_open:
                 self.busy_time = self.ride_time - 1
@@ -94,6 +91,7 @@ class Elevator:
             self.door_open = True
         elif typ == "close":
             self.door_open = False
+        self.pending_action = None
 
     def board_guests(self, waiting_guests):
         """
@@ -146,8 +144,6 @@ class Elevator:
                 )
                 leaving.append(g)
                 if g.working_time_left > 0:
-                    elevator_time = self.multielevator.episode_steps - g.waiting_since
-                    g.working_time_left -= elevator_time
                     self.multielevator.guests_on_floors.append(g)
                 else:
                     g.state = "left"
