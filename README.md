@@ -139,7 +139,7 @@ For more details, see `Documentation_in_german/` and code comments.
 
 Feel free to contact us if you have questions, need additional documentation, or want to discuss further improvements.
 
-- Original simulation & RL: Fr3ddog69  
+- Original simulation & RL: frederikcodes  
 - Production API & extensions: Aaron Drake (ajdrake)
 
 ---
