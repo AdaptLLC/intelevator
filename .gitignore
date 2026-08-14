@@ -33,6 +33,7 @@ checkpoints_episode/
 *.zip
 !Elevator_Modell_Simulation/elevator_sim_comparison.mp4
 !Elevator_Reinforcement_Training/checkpoints_v2/*.zip
+!Elevator_Reinforcement_Training/checkpoints_v4/*.zip
 !Elevator_Modell_Simulation/modell/ppo_checkpoint_ep3748_failed.zip
 
 # Environment and secrets

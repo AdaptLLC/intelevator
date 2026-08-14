@@ -63,8 +63,8 @@ class MultiElevatorEnv(gym.Env):
         high_elevator = [10 - 1, max_passengers] + [max_passengers] * 10
 
         # All elevators together:
-        low = low_elevator * 3
-        high = high_elevator * 3
+        low = low_elevator * num_elevators
+        high = high_elevator * num_elevators
 
         # For each floor: waiting guests [0, max_guests]
         low += [0] * 10
@@ -271,8 +271,8 @@ class MultiElevatorEnv(gym.Env):
 
     def _get_obs(self):
         obs = []
-        num_elevators = 3  # Or use self.num_elevators
-        num_floors = 10  # Or use self.num_floors
+        num_elevators = self.num_elevators
+        num_floors = self.num_floors
 
         # Go through all existing elevators
         for elev in self.elevators:
